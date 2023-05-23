@@ -3,6 +3,8 @@ hostname
 
 $PSVersionTable
 
+whoami.exe
+
 "Environment Variables:"
 Get-ChildItem env:
 
