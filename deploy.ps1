@@ -126,14 +126,18 @@ else {
 Import-Module -Name "$($env:ProgramFiles)\ScriptRunner\Service\Bin\PsModules\ScriptRunnerSettings"
 
 # Aktiviere HTTPS / -Restart-AsrService not working
-Set-AsrSTSOptions -SSLCertThumbprint $cert.Thumbprint -LocalPort 443
-Set-AsrURI -LocalOnly
+Set-AsrSTSOptions -SSLCertThumbprint $cert.Thumbprint -LocalPort 443 -AuthMode WIN
+Set-AsrURI -LocalOnly 1
 
 Restart-AsrService
 Start-Sleep -Seconds 10
 Test-AsrUri -Verbose -ErrorAction Continue
 
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers
+Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
 Install-Module -Name Az.Accounts, Az.Resources, AzureAD -Scope AllUsers -Force
 Get-Module -ListAvailable -Name Az.Accounts, Az.Resources, AzureAD
 
 Get-AzContext
+
+exit
