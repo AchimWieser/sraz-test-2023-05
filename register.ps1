@@ -1,7 +1,10 @@
 # Requires -Version 5.1
 # Requires -RunAsAdministrator
-#Requires -Module @{ ModuleName = 'Az.Accounts'; ModuleVersion = '2.12.3' }
-#Requires -Module @{ ModuleName = 'Az.Resources'; ModuleVersion = '6.7.0' }
+# CloudShell currently only supports Az 9.7
+#Requires -Module @{ ModuleName = 'Az.Accounts'; ModuleVersion = '2.12.2' }
+#Requires -Module @{ ModuleName = 'Az.Resources'; ModuleVersion = '6.6.1'}
+# Requires -Module @{ ModuleName = 'Az.Accounts'; ModuleVersion = '2.12.3' }
+# Requires -Module @{ ModuleName = 'Az.Resources'; ModuleVersion = '6.7.0' }
 
 
 [CmdletBinding()]
