@@ -1,17 +1,17 @@
+﻿#Requires -RunAsAdministrator
 
-hostname
+[CmdletBinding()]
+param (
+	$DNSName,
+	$DownloadUri = 'https://www.scriptrunner.com/hubfs/MGA_Files/ScriptRunnerTrial_6.8.2345.0.zip'
+)
 
-$PSVersionTable
+$PSVersionTable | Write-Output
+whoami.exe | Write-Output
 
-whoami.exe
-
-"Environment Variables:"
-Get-ChildItem env:
-
-#Get-Module
-
-"Available Modules:"
-#Get-Module -ListAvailable
+if (-not $PSBoundParameters.ContainsKey('DNSName')) {
+	$DNSName = [System.Net.Dns]::GetHostByName(($env:computerName)).HostName
+}
 
 # Use TLS1.2 Protocol
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -23,8 +23,10 @@ try {
 }
 catch {
 	$Error[0]
-	Write-Error "Error occured while setting TLS Version." -ErrorAction Stop
+	Write-Error 'Error occured while setting TLS Version.' -ErrorAction Stop
 }
+
+Enable-PSRemoting -Force -SkipNetworkProfileCheck -Verbose
 
 # Create install folder
 $installTempPath = 'C:\srinstall\'
@@ -34,19 +36,17 @@ if (-not (Test-Path -Path $installTempPath)) {
 }
 
 # Create SSL Certifikates
-$dnsName = [System.Net.Dns]::GetHostByName(($env:computerName)).HostName
-
 $CertArgs = @{
-	'DnsName'           = $dnsName
-	'FriendlyName'      = 'ScriptRunner SSL Certificate'
-	'Subject'           = "CN=$($dnsName)"
-	'CertStoreLocation' = "Cert:\LocalMachine\My"
+	'DnsName'           = $DNSName
+	'FriendlyName'      = 'Automated ScriptRunner SSL Certificate'
+	'Subject'           = "CN=$($DNSName)"
+	'CertStoreLocation' = 'Cert:\LocalMachine\My'
 	'NotAfter'          = (Get-Date).AddYears(2)
-	'KeyAlgorithm'      = "RSA"
-	'KeyExportPolicy'   = "Exportable"
-	'KeySpec'           = "Signature"
+	'KeyAlgorithm'      = 'RSA'
+	'KeyExportPolicy'   = 'Exportable'
+	'KeySpec'           = 'Signature'
 	'KeyLength'         = 2048
-	'ErrorAction'       = 'Continue'
+	'ErrorAction'       = 'Ignore'
 }
 
 $cert = New-SelfSignedCertificate @CertArgs
@@ -69,8 +69,8 @@ if ($null -ne $cert) {
 		$cert01 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
 		$cert01.Import($pfxCertPath, $certPassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
 
-		$storeLocation = "LocalMachine"
-		$storeName = "Root"
+		$storeLocation = 'LocalMachine'
+		$storeName = 'Root'
 
 		$store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, $storeLocation)
 		$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
@@ -79,14 +79,14 @@ if ($null -ne $cert) {
 	}
 	catch {
 		$Error[0]
-		Write-Error "Error occured during creation and exporting the certificate." -ErrorAction Stop
+		Write-Error 'Error occured during creation and exporting the certificate.' -ErrorAction Stop
 	}
 }
 
 # Allow HTPPS to ScriptRunner Server
 $fireWallRuleName = 'ScriptRunner_tcp/443'
 # netsh advfirewall firewall add rule name= $fireWallRuleName dir=in action=allow protocol=TCP localport=443
-if($null -eq (Get-NetFirewallRule -DisplayName $fireWallRuleName -ErrorAction SilentlyContinue)) {
+if ($null -eq (Get-NetFirewallRule -DisplayName $fireWallRuleName -ErrorAction SilentlyContinue)) {
 	New-NetFirewallRule -Name $fireWallRuleName -DisplayName $fireWallRuleName -Direction Inbound -Action Allow -Protocol 'TCP' -LocalPort '443' -Enabled True
 }
 Start-Sleep -Seconds 5
@@ -107,7 +107,7 @@ $null = Get-NetFirewallRule -DisplayName $fireWallRuleName -ErrorAction Continue
 # }
 
 # Download ScriptRunner setup ZIP
-Invoke-WebRequest -Uri "https://www.scriptrunner.com/hubfs/MGA_Files/ScriptRunnerTrial_6.8.2345.0.zip" -OutFile "$($installTempPath)scriptrunnertrial.zip"
+Invoke-WebRequest -Uri $DownloadUri -OutFile "$($installTempPath)scriptrunnertrial.zip"
 
 # Unpack ScriptRunner setup ZIP
 Expand-Archive -Path "$($installTempPath)scriptrunnertrial.zip" -DestinationPath "$($installTempPath)scriptrunner"
@@ -116,7 +116,7 @@ Expand-Archive -Path "$($installTempPath)scriptrunnertrial.zip" -DestinationPath
 $setupExe = (Get-ChildItem -Path "$($installTempPath)\scriptrunner\" -Filter 'setup*.exe').Name
 if ($null -ne $setupExe) {
 	# Install ScriptRunner in silent mode
-	Start-Process "$($installTempPath)\scriptrunner\$($setupExe)" -ArgumentList @("-S", "-force") -Wait -NoNewWindow
+	Start-Process "$($installTempPath)\scriptrunner\$($setupExe)" -ArgumentList @('-S', '-force') -Wait -NoNewWindow
 }
 else {
 	Write-Error "ScriptRunner Setup File '$($installTempPath)\scriptrunner\$($setupExe)' not found." -ErrorAction Stop
@@ -138,6 +138,3 @@ Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
 Install-Module -Name Az.Accounts, Az.Resources, AzureAD -Scope AllUsers -Force
 Get-Module -ListAvailable -Name Az.Accounts, Az.Resources, AzureAD
 
-Get-AzContext
-
-exit
