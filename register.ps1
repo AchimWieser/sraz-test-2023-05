@@ -773,8 +773,9 @@ function ConfigureAADApplications {
 		"Run '$($PSCmdlet.MyInvocation.MyCommand)' with Parameters$($PSBoundParameters | Out-String)" | Write-SRLog -LogType Verbose -PassThru | Write-Verbose
 		# Get the user running the script to add the user as the app owner
 		#$user = AzureAD\Get-AzureADUser -ObjectId $sessionInfo.Account.Id
-		$user = Az.Resources\Get-AzADUser -UserPrincipalName (Az.Accounts\Get-AzContext).Account.Id
-		Write-SRLog "Run register as user$($user | Out-String)" -PassThru | Write-Output
+		# $user = Az.Resources\Get-AzADUser -UserPrincipalName (Az.Accounts\Get-AzContext).Account.Id
+		# Write-SRLog "Run register as user$($user | Out-String)" -PassThru | Write-Output
+		(Az.Accounts\Get-AzContext).Account | Out-String | Write-SRLog -PassThru | Write-Output
 
 		# the URIs SHOULD BE lowercase!
 		Set-Variable -Name 'baseUri' -Option Constant -Visibility Private -Value "https://$($DnsName)/scriptrunner/"
