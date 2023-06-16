@@ -694,10 +694,10 @@ function AddAzADDirectoryRole {
 		$uri = 'https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments'
 		$body = $data | ConvertTo-Json
 		Invoke-RestMethod -Method Post -Uri $uri -Headers $header -ContentType 'application/json' -Body $body | Write-SRLog -PassThru | Write-Output
-		Write-SRLog "Add role with DefinitionId '$($RoleDefinitionId)' to application with ObjectId '$($ServicePrincipalObjectId)' done." -PassThru | Write-Output
+		Write-SRLog "Add directory role with DefinitionId '$($RoleDefinitionId)' to application with ObjectId '$($ServicePrincipalObjectId)' done." -PassThru | Write-Output
 	}
 	catch {
-		Write-SRLog -LogType Error "Add role with DefinitionId '$($RoleDefinitionId)' to application with ObjectId '$($ServicePrincipalObjectId)' failed." -PassThru | Write-Error -ErrorAction Continue
+		Write-SRLog -LogType Error "Add directory role with DefinitionId '$($RoleDefinitionId)' to application with ObjectId '$($ServicePrincipalObjectId)' failed." -PassThru | Write-Error -ErrorAction Continue
 		$e = $_ | Write-SRLog -LogType Error -PassThru
 		$e | Write-Error -ErrorAction Stop
 	}
@@ -708,18 +708,34 @@ function AddAzRoleAssignment {
 	param (
 		[Parameter(Mandatory)]
 		[string]$ServicePrincipalObjectId,
-		[Parameter(Mandatory)]
-		[string]$RoleDefinitionId
+		[Parameter(ParameterSetName='RoleDefinitionName', Mandatory)]
+		[string]$RoleDefinitionName,
+		[Parameter(ParameterSetName='RoleDefinitionId', Mandatory)]
+		[string]$RoleDefinitionId,
+		[Parameter(ParameterSetName='RoleDefinitionId', Mandatory)]
+		[string]$Scope
 	)
 
 	"Run '$($PSCmdlet.MyInvocation.MyCommand)' with Parameters$($PSBoundParameters | Out-String)" | Write-SRLog -LogType Verbose -PassThru | Write-Verbose
-	Az.Resources\Get-AzRoleDefinition -Id $RoleDefinitionId -ErrorAction Continue | Write-SRLog -LogType Verbose -PassThru | Write-Verbose
 
-	if($null -eq (Az.Resources\Get-AzRoleAssignment -ObjectId $ServicePrincipalObjectId | Where-Object -Property 'RoleDefinitionId' -eq $RoleDefinitionId)){
-		Az.Resources\New-AzRoleAssignment -ObjectId $ServicePrincipalObjectId -RoleDefinitionId $RoleDefinitionId -ErrorAction Continue | Write-SRLog -PassThru | Write-Output
+	if($PSCmdlet.ParameterSetName -eq 'RoleDefinitionId') {
+		Az.Resources\Get-AzRoleDefinition -Id $RoleDefinitionId -ErrorAction Continue | Write-SRLog -LogType Verbose -PassThru | Write-Verbose
+		if($null -eq (Az.Resources\Get-AzRoleAssignment -ObjectId $ServicePrincipalObjectId | Where-Object -Property 'RoleDefinitionId' -eq $RoleDefinitionId)) {
+			# ParameterSet with RoleDefinitionId requires mandatory -Scope Parameter
+			Az.Resources\New-AzRoleAssignment -ObjectId $ServicePrincipalObjectId -RoleDefinitionId $RoleDefinitionId -Scope $Scope -ErrorAction Continue | Write-SRLog -PassThru | Write-Output
+		}
+		else {
+			Write-SRLog "RoleAssignment with RoleDefinitionId '$($RoleDefinitionId)' already exists for Service Principal with ObjectId '$($ServicePrincipalObjectId)'." -PassThru | Write-Output
+		}
 	}
-	else {
-		Write-SRLog "RoleAssignment with RoleDefinitionId '$($RoleDefinitionId)' already exists for Service Principal with ObjectId '$($ServicePrincipalObjectId)'." -PassThru | Write-Output
+	elseif($PSCmdlet.ParameterSetName -eq 'RoleDefinitionName') {
+		Az.Resources\Get-AzRoleDefinition -Name $RoleDefinitionName -ErrorAction Continue | Write-SRLog -LogType Verbose -PassThru | Write-Verbose
+		if($null -eq (Az.Resources\Get-AzRoleAssignment -ObjectId $ServicePrincipalObjectId | Where-Object -Property 'RoleDefinitionName' -eq $RoleDefinitionName)) {
+			Az.Resources\New-AzRoleAssignment -ObjectId $ServicePrincipalObjectId -RoleDefinitionName $RoleDefinitionName -ErrorAction Continue | Write-SRLog -PassThru | Write-Output
+		}
+		else {
+			Write-SRLog "RoleAssignment with RoleDefinitionName '$($RoleDefinitionName)' already exists for Service Principal with ObjectId '$($ServicePrincipalObjectId)'." -PassThru | Write-Output
+		}
 	}
 }
 
@@ -850,10 +866,11 @@ function ConfigureAADApplications {
 		GrantApiResourceAccess -AppObjectId $serviceAadApplication.ObjectId -ResourceAppId $spMsGraph.AppId -ResourceAccessType 'Role' -PermissionId $permission.Id
 		#>
 
-		Write-SRLog "Assign Directory Role 'Directory Readers' to service principal '$appNameAPI' ..." -PassThru | Write-Output
+		Write-SRLog "Assign Directory Role 'Directory Reader' to service principal '$appNameAPI' ..." -PassThru | Write-Output
 		AddAzADDirectoryRole -ServicePrincipalObjectId $serviceServicePrincipal.Id -RoleDefinitionId '88d8e3e3-8f55-4a1e-953a-9b9898b8876b'
-		Write-SRLog "Assign Azure Role 'Readers' to service principal '$appNameAPI' ..." -PassThru | Write-Output
-		AddAzRoleAssignment -ServicePrincipalObjectId $serviceServicePrincipal.Id -RoleDefinitionId 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+		Write-SRLog "Assign Azure Role 'Reader' to service principal '$appNameAPI' ..." -PassThru | Write-Output
+		#AddAzRoleAssignment -ServicePrincipalObjectId $serviceServicePrincipal.Id -RoleDefinitionId 'acdd72a7-3385-48ef-bd42-f606fba81ae7' -Scope 'TODO'
+		AddAzRoleAssignment -ServicePrincipalObjectId $serviceServicePrincipal.Id -RoleDefinitionName 'Reader'
 
 		# accessToken claims config
 		Write-SRLog "Setting group membership claims for application '$appNameAPI' ..." -PassThru | Write-Output
