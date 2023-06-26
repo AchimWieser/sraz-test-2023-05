@@ -15,6 +15,8 @@ param(
 	[string]$CertBase64
 )
 
+$eap = $ErrorActionPreference
+$ErrorActionPreference = 'Stop'
 
 # set module variables
 Set-Variable -Name 'appNameSPA' -Scope 'script' -Value '[DBG] ScriptRunner Portal' #-Visibility Private -Option ReadOnly -Force
@@ -28,6 +30,7 @@ Set-Variable -Name 'appPathSrApp' -Scope 'script' -Value 'portal/' #-Visibility 
 Set-Variable -Name 'configFile' -Scope 'script' -Value 'app.json' #-Visibility Private -Option ReadOnly -Force
 Set-Variable -Name 'tenantName' -Scope 'script' -Value $null #-Visibility Private
 
+#region functions
 if ($null -eq $env:TEMP) {
 	Set-Variable -Name 'tempPath' -Scope 'script' -Value (Join-Path -Path "$($HOME)" -ChildPath 'temp\scriptrunner') #-Visibility Private
 }
@@ -104,7 +107,6 @@ function AddAzureADAppCertCred {
 		[string]$CertBase64
 	)
 
-	try {
 		"Run '$($PSCmdlet.MyInvocation.MyCommand)' with Parameters$($PSBoundParameters | Out-String)" | Write-SRLog -LogType Verbose -PassThru | Write-Verbose
 		$myCertData = $null
 		# TODO: check if cert already exists!
@@ -164,11 +166,6 @@ function AddAzureADAppCertCred {
 		}
 		New-AzADAppCredential @keyCredArgs
 		Write-SRLog "Add new AppCredential to AppId $($AppObjectID)." -PassThru | Write-Output
-	}
-	catch {
-		$e = $_ | Write-SRLog -LogType Error -PassThru
-		$e | Write-Error -ErrorAction Stop
-	}
 }
 
 <#
@@ -1912,5 +1909,14 @@ function NewSelfSignedAppCert {
 	New-SelfSignedCertificate @certArgs
 	#$cert = New-SelfSignedCertificate -Subject "CN=$certname" -CertStoreLocation "Cert:\CurrentUser\My" -KeyExportPolicy Exportable -KeySpec Signature -KeyLength 2048 -KeyAlgorithm RSA -HashAlgorithm SHA256
 }
+#endregion functions
+
+trap {
+	$ErrorActionPreference = $eap
+	$_ | Write-SRLog -LogType Error
+	throw $_
+}
 
 Register-AsrAzureADApp -DnsName $DnsName -CertBase64 $CertBase64
+
+$ErrorActionPreference = $eap

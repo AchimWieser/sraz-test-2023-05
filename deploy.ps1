@@ -6,8 +6,79 @@ param (
 	$DownloadUri = 'https://www.scriptrunner.com/hubfs/MGA_Files/ScriptRunnerTrial_6.8.2345.0.zip'
 )
 
-$PSVersionTable | Write-Output
-whoami.exe | Write-Output
+$eap = $ErrorActionPreference
+$ErrorActionPreference = 'Stop'
+
+#region functions
+if ($null -eq $env:TEMP) {
+	Set-Variable -Name 'tempPath' -Scope 'script' -Value (Join-Path -Path "$($HOME)" -ChildPath 'temp\scriptrunner') #-Visibility Private
+}
+else {
+	Set-Variable -Name 'tempPath' -Scope 'script' -Value (Join-Path -Path "$($env:TEMP)" -ChildPath 'scriptrunner') #-Visibility Private
+}
+$null = New-Item -ItemType Directory -Path $tempPath -Force
+$logFileName = "sr-install-$((Get-Date).ToString('yyyyMMdd-HHmmss')).log"
+Set-Variable -Name 'logFilePath' -Scope 'script' -Value (Join-Path -Path $tempPath -ChildPath $logFileName) #-Visibility Private
+Write-Output "Writing logoutput to '$($logFilePath)' ..."
+function Write-SRLog {
+	[CmdletBinding()]
+	param (
+		[parameter(ValueFromPipelineByPropertyName, ValueFromPipeline)]
+		[object[]]$InputObject,
+		[ValidateSet('Error', 'Warning', 'Info', 'Verbose', 'Debug')]
+		[string]$LogType = 'Info',
+		[Alias('PassThrough')]
+		[switch]$PassThru
+	)
+
+	Begin {
+		function Local:WriteSRLog {
+			[CmdletBinding()]
+			param(
+				[string]$Log,
+				[switch]$PassThru,
+				[ValidateSet('Error', 'Warning', 'Info', 'Verbose', 'Debug')]
+				[string]$LogType = 'Info',
+				[bool]$CanWriteLog
+			)
+
+			if ($PassThru.IsPresent) {
+				$Log.TrimEnd([System.Environment]::NewLine)
+			}
+			if ($CanWriteLog) {
+				"$((Get-Date).ToString('[yyyy-MM-dd HH:mm:ss,fff] '))" + "$($LogType): " + $Log.TrimEnd([System.Environment]::NewLine) | Out-File -FilePath $script:logFilePath -Encoding utf8 -Append -Force
+			}
+		}
+
+		$canWriteLog = $false
+		$logPath = Split-Path -Path $script:logFilePath -Parent -ErrorAction Continue
+		$canWriteLog = (Test-Path -Path $logPath -ErrorAction Continue)
+	}
+
+	Process {
+		if ($PSBoundParameters.ContainsKey('InputObject')) {
+			$InputObject | ForEach-Object {
+				$log = ($_ | Out-String)
+				WriteSRLog -LogType $LogType -Log $log -PassThru:($PassThru.IsPresent) -CanWriteLog $canWriteLog
+			}
+		}
+		else {
+			$log = $_ | Out-String
+			WriteSRLog -LogType $LogType -Log $log -PassThru:($PassThru.IsPresent) -CanWriteLog $canWriteLog
+		}
+	}
+}
+#endregion functions
+
+trap {
+	$ErrorActionPreference = $eap
+	$_ | Write-SRLog -LogType Error
+	throw $_
+}
+
+
+$PSVersionTable | Write-SRLog -PassThru | Write-Output
+whoami.exe | Write-SRLog -PassThru | Write-Output
 
 if (-not $PSBoundParameters.ContainsKey('DNSName')) {
 	$DNSName = [System.Net.Dns]::GetHostByName(($env:computerName)).HostName
@@ -16,15 +87,9 @@ if (-not $PSBoundParameters.ContainsKey('DNSName')) {
 # Use TLS1.2 Protocol
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-try {
-	# Set TLS for later PowerShell module installations
-	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Wow6432Node\Microsoft\.NetFramework\v4.0.30319' -Name 'SchUseStrongCrypto' -Value '1' -Type DWord
-	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\.NetFramework\v4.0.30319' -Name 'SchUseStrongCrypto' -Value '1' -Type DWord
-}
-catch {
-	$Error[0]
-	Write-Error 'Error occured while setting TLS Version.' -ErrorAction Stop
-}
+# Set TLS for later PowerShell module installations
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Wow6432Node\Microsoft\.NetFramework\v4.0.30319' -Name 'SchUseStrongCrypto' -Value '1' -Type DWord
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\.NetFramework\v4.0.30319' -Name 'SchUseStrongCrypto' -Value '1' -Type DWord
 
 Enable-PSRemoting -Force -SkipNetworkProfileCheck -Verbose
 
@@ -138,3 +203,4 @@ Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
 Install-Module -Name Az.Accounts, Az.Resources, AzureAD -Scope AllUsers -Force
 Get-Module -ListAvailable -Name Az.Accounts, Az.Resources, AzureAD
 
+$ErrorActionPreference = $eap
