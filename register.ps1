@@ -799,7 +799,9 @@ function ConfigureAADApplications {
 		Write-SRLog "BackendUri: '$backendUri'" -PassThru | Write-Output
 	}
 
-	process {
+	process {}
+
+	end {
 		# $appConfig = @{}
 		# $useAppId = $false
 		$serviceAadApplication = $null
@@ -1110,19 +1112,28 @@ function ConfigureAADApplications {
 		# }
 		# Set-AsrSTSOptions @stsArgs -Restart
 		# }
+
+		$DeploymentScriptOutputs = @{}
+		$DeploymentScriptOutputs.ApplicationNameSPA = $appNameSPA
+		$DeploymentScriptOutputs.ApplicationNameAPI = $appNameAPI
+		$DeploymentScriptOutputs.ApplicationIdAPI = $serviceServicePrincipal.AppId
+		$DeploymentScriptOutputs.ApplicationIdSPA = $spaServicePrincipal.AppId
+		$DeploymentScriptOutputs.ObjectIdAzAdAppAPI = $serviceAadApplication.Id
+		$DeploymentScriptOutputs.ObjectIdAzAdSpAPI = $serviceServicePrincipal.Id
+		$DeploymentScriptOutputs.ObjectIdAzAdAppSPA = $spaAadApplication.Id
+		$DeploymentScriptOutputs.ObjectIdAzAdSpSPA = $spaServicePrincipal.Id
 	}
 
-	end {
-		<#
-		if ($OpenBrowser.IsPresent) {
-			if (-not $OnlyService.IsPresent) {
-				Start-Process "$spaPortalUrl"
-			}
-			Start-Process "$servicePortalUrl"
+	<#
+	if ($OpenBrowser.IsPresent) {
+		if (-not $OnlyService.IsPresent) {
+			Start-Process "$spaPortalUrl"
 		}
-		DisconnectAzureAD
-		#>
+		Start-Process "$servicePortalUrl"
 	}
+	DisconnectAzureAD
+	#>
+
 	# TODO:
 	# Remove id token implicit grant flow
 	# Set replyUrlType to 'Spa' for the webapp
